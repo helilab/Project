@@ -1,5 +1,5 @@
-load part3problem2states;
-load part3problem2lqr;
+load part4problem3states;
+load part4problem3lqr;
 
 modelsamples = lqrout(1,1:end-1);
 optpath = -[ 0*ones(1,20) zz(1:4:nx*N,2)'-pi -pi*ones(1,20)];
