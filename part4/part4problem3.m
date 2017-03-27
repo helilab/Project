@@ -1,7 +1,7 @@
 % Authors: Magne Hov, Audun Nytroe, Torje Digernes
 
 % Run the init script
-run('init07.m')
+run('init05.m')
 
 %% Parameters
 % Time step
@@ -17,8 +17,8 @@ lambda_0 = pi;
 lambda_f = 0;
 lambda_t = 2*pi/3;
 
-x_0 = [lambda_0 0 0 0]';
-x_f = [lambda_f 0 0 0]';
+x_0 = [lambda_0 0 0 0 0 0]';
+x_f = [lambda_f 0 0 0 0 0]';
 
 %% System
 % Continuous system
@@ -50,10 +50,6 @@ Beq(1:nx) = A_d*x_0;
 Ain = [];
 Bin = [];
 
-% Nonlinear constraints
-function [c,ceq] = mynonlcon(x)
-c = ...     % Compute nonlinear inequalities at x.
-
 % Boundaries
 statelimit = [inf inf 30*pi/180 inf]';
 inputlimit = [30*pi/180 ];
@@ -62,9 +58,12 @@ lb = -bound;
 ub = +bound;
 
 % Creating object function
+q_1 = 0.5;q_2 = 0.5;
+nonlinCost = diag([1,0,q_1,0,q_2,0]);
 objectFunction = @(z) z(1);
 
 % Solve
+guess = quadprog(objectFunction,Ain,Bin,Aeq,Beq,lb,ub);
 z = fmincon(objectFunction,[],Ain,Bin,Aeq,Beq,lb,ub,@mynonlcon);
 
 
