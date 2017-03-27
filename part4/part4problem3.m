@@ -21,7 +21,7 @@ lambda_0 = pi;
 lambda_f = 0;
 lambda_t = 2*pi/3;
 
-x_0 = [lambda_0 0 0 0 0 0]';
+x_0 = [lambda_0 0 0 0 0.001 0]';
 x_f = [lambda_f 0 0 0 0 0]';
 
 %% System
@@ -47,7 +47,6 @@ B_d = h*B_c;
 % Linear equality constrains
 Aeq = [ kron( eye(N), eye(nx) )+kron(diag(ones(1,N-1),-1),-A_d) kron( eye(N), -B_d)];
 Beq = zeros((nx)*N,1);
-size(Beq);
 Beq(1:nx) = A_d*x_0;
 
 % Linear inequality constraints 
@@ -56,7 +55,7 @@ Bin = [];
 
 % Boundaries
 statelimit = [inf inf 30*pi/180 inf inf inf]';
-inputlimit = [30*pi/180 inf]';
+inputlimit = [30*pi/180 30*pi/180]';
 bound = [repmat(statelimit, N,1) ; repmat(inputlimit, N,1)];
 lb = -bound;
 ub = +bound;
@@ -69,14 +68,21 @@ Q = diag([1 0 0 0 0 0]);
 R = diag([q_1 q_2]);
 costMatrix = [Q zeros(nx,nu); zeros(nu,nx) R ];
 H = kron(eye(N), costMatrix);
-% Creating object function for NLP problem
-nonlinCost = diag([1,0,q_1,0,q_2,0]);
-objectFunction = @(z) z(1);
+%   Modify matrices to include a setpoint above the mountain for quadprog
+beta  = 20;
+alfa = 0.2;
+lambda_t = 2*pi/3;
+
+setPoint = [lambda_t 0 0 0 alfa 0]';
+timeSteps = 16;
+Beq_QP = [Beq; setPoint];
+A_setpoint = diag([1 0 0 0 1 0]);
+Aeq_QP = [Aeq; zeros(nx, (nx+nu)*N)];
+Aeq_QP(nx*N+1:end, nx*timeSteps+1:nx*(timeSteps+1)) = A_setpoint;
 
 % Solve
-z = quadprog(H,[],[],[],Aeq,Beq,lb,ub);
-%z = fmincon(objectFunction,z,Ain,Bin,Aeq,Beq,lb,ub,@mynonlcon);
-
+z = quadprog(H,[],[],[],Aeq_QP,Beq_QP,lb,ub);
+%z = fmincon(@myObjectFunction,z,Ain,Bin,Aeq,Beq,lb,ub,@mynonlcon);
 
 %% Create input vectors for Simulink
 optimalInput        = timeseries;
@@ -98,7 +104,8 @@ R_lqr = diag([1 1]);
 % Plot Input vectors and predicted states
 shouldPlot = true;
 if shouldPlot
-   figure(1);
+    
+   figure(1); % Plot inputs
    plot(optimalInput);
    grid on;
    title('Optimal input references');
@@ -106,7 +113,7 @@ if shouldPlot
    xlabel('Time [s]');
    ylabel('Angle [radians]');
    
-   figure(2);
+   figure(2); % Plot trajectories
    plot(optimalTrajectory.time, [optimalTrajectory.data(:,1) optimalTrajectory.data(:,3) optimalTrajectory.data(:,5)]);
    grid on;
    title('Optimal trajectories');
@@ -114,7 +121,7 @@ if shouldPlot
    xlabel('Time [s]');
    ylabel('Angle [radians]');
    
-   figure(3); % travel-elevation plot
+   figure(3); % Plot Travel/Elevation
    plot(optimalTrajectory.data(:,1), optimalTrajectory.data(:,5));
    grid on;
    title('Travel - Elevation trajectory');
