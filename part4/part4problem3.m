@@ -7,14 +7,17 @@ run('init05.m')
 % Time step
 h = 0.25;
 % Horizon
-N = 40;
+global N;
+N = 80;
 % Horizon period
 T = N*h;
 % Run time, horizon period + inital 5s and final 5s
 T_run = T + 10;
 % states
+global nx;
 nx = 6;
 % inputs
+global nu;
 nu = 2;
 
 lambda_0 = pi;
@@ -54,13 +57,15 @@ Ain = [];
 Bin = [];
 
 % Boundaries
-statelimit = [inf inf 30*pi/180 inf inf inf]';
-inputlimit = [30*pi/180 30*pi/180]';
-bound = [repmat(statelimit, N,1) ; repmat(inputlimit, N,1)];
-lb = -bound;
-ub = +bound;
+upperstatelimit = [inf inf 30*pi/180 inf inf inf]';
+lowerstatelimit = [-inf -inf -30*pi/180 -inf 0 -inf]';
+upperinputlimit = [30*pi/180 30*pi/180]';
+lowerinputlimit = [-30*pi/180 -30*pi/180]';
+ub = [repmat(upperstatelimit, N,1) ; repmat(upperinputlimit, N,1)];
+lb = [repmat(lowerstatelimit, N,1) ; repmat(lowerinputlimit, N,1)];
 
 % Creating object funciton cost matrix for QP problem
+global q_1 q_2;
 q_1 = 1;
 q_2 = 1;
 
@@ -69,20 +74,28 @@ R = diag([q_1 q_2]);
 costMatrix = [Q zeros(nx,nu); zeros(nu,nx) R ];
 H = kron(eye(N), costMatrix);
 %   Modify matrices to include a setpoint above the mountain for quadprog
-beta  = 20;
+global beta;
+beta = 20;
+global alfa;
 alfa = 0.2;
-lambda_t = 2*pi/3;
+global ourlambda ;
+ourlambda = 2*pi/3;
 
 setPoint = [lambda_t 0 0 0 alfa 0]';
-timeSteps = 16;
+timeSteps = 50;
 Beq_QP = [Beq; setPoint];
 A_setpoint = diag([1 0 0 0 1 0]);
 Aeq_QP = [Aeq; zeros(nx, (nx+nu)*N)];
 Aeq_QP(nx*N+1:end, nx*timeSteps+1:nx*(timeSteps+1)) = A_setpoint;
 
 % Solve
+beta_m  = 20;
+alfa = 0.2;
+lambda_t = 2*pi/3;
+options = optimset('MaxFunEvals',3000);
+berg =@(lambda_k)( alfa * exp( - beta  * (lambda_k -lambda_t).^2)    )
 z = quadprog(H,[],[],[],Aeq_QP,Beq_QP,lb,ub);
-%z = fmincon(@myObjectFunction,z,Ain,Bin,Aeq,Beq,lb,ub,@mynonlcon);
+%z = fmincon(@myObjectFunction,z,Ain,Bin,Aeq,Beq,lb,ub,@mynonlcon,options);
 
 %% Create input vectors for Simulink
 optimalInput        = timeseries;
@@ -122,7 +135,8 @@ if shouldPlot
    ylabel('Angle [radians]');
    
    figure(3); % Plot Travel/Elevation
-   plot(optimalTrajectory.data(:,1), optimalTrajectory.data(:,5));
+   plot(-optimalTrajectory.data(:,1), [optimalTrajectory.data(:,5), berg(pi+optimalTrajectory.data(:,1))]);
+    %plot(optimalTrajectory.data(:,1), [optimalTrajectory.data(:,5), berg(optimalTrajectory.data(:,1))]);
    grid on;
    title('Travel - Elevation trajectory');
    xlabel('Travel [radians]');
