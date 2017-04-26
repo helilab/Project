@@ -20,7 +20,7 @@ lambda_t = 2*pi/3;
 options = optimset('MaxFunEvals',100000);
 berg =@(lambda_k)( alfa * exp( - beta  * (lambda_k -lambda_t).^2)    )
 
-plot(-statesout(2,5/0.002:end-(2.5/0.002)),[statesout(6,5/0.002:end-(2.5/0.002)) ;-correctedByLQR(2:3,5/0.002:end-(2.5/0.002)) ]);
+plot(-statesout(2,5/0.002:end-(2.5/0.002)),[statesout(6,5/0.002:end-(2.5/0.002)) ;correctedByLQR(3,5/0.002:end-(2.5/0.002)) ]);
 %plot(-statesout(2,5/0.002:end-(2.5/0.002)),[correctedByLQR(2:3,5/0.002:end-(2.5/0.002)) ]);
 hold on
 plot([0:0.01:pi], berg(+pi/3+[0:0.01:pi]));
