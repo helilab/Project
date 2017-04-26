@@ -8,7 +8,7 @@ run('init05.m')
 h = 0.25;
 % Horizon
 global N;
-N = 80;
+N = 60;
 % Horizon period
 T = N*h;
 % Run time, horizon period + inital 5s and final 5s
@@ -71,8 +71,8 @@ q_2 = 1;
 
 Q = diag([1 0 0 0 0 0]);
 R = diag([q_1 q_2]);
-costMatrix = [Q zeros(nx,nu); zeros(nu,nx) R ];
-H = kron(eye(N), costMatrix);
+H = [kron(eye(N),Q) zeros(N*nx,N*nu); zeros(N*nu,N*nx) kron(eye(N),R) ];
+%H = kron(eye(N), costMatrix);
 %   Modify matrices to include a setpoint above the mountain for quadprog
 global beta;
 beta = 20;
@@ -82,7 +82,7 @@ global ourlambda ;
 ourlambda = 2*pi/3;
 
 setPoint = [lambda_t 0 0 0 alfa 0]';
-timeSteps = 50;
+timeSteps = 15;
 Beq_QP = [Beq; setPoint];
 A_setpoint = diag([1 0 0 0 1 0]);
 Aeq_QP = [Aeq; zeros(nx, (nx+nu)*N)];
@@ -92,11 +92,21 @@ Aeq_QP(nx*N+1:end, nx*timeSteps+1:nx*(timeSteps+1)) = A_setpoint;
 beta_m  = 20;
 alfa = 0.2;
 lambda_t = 2*pi/3;
-options = optimset('MaxFunEvals',3000);
+options = optimset('MaxFunEvals',100000);
 berg =@(lambda_k)( alfa * exp( - beta  * (lambda_k -lambda_t).^2)    )
-z = quadprog(H,[],[],[],Aeq_QP,Beq_QP,lb,ub);
-%z = fmincon(@myObjectFunction,z,Ain,Bin,Aeq,Beq,lb,ub,@mynonlcon,options);
-
+torjeisdumb = false;
+if torjeisdumb == false
+    z = zeros(480,1);
+    [z,fval,exitflag,output,lambda] = quadprog(H,[],[],[],Aeq_QP,Beq_QP,lb,ub);
+    fval
+    1/2 *z'*H*z
+    output;
+    myObjectFunction(z)
+    [z,fval,exitflag,output,lambda,grad,hessian] = fmincon(@myObjectFunction,z,Ain,Bin,Aeq,Beq,lb,ub,@mynonlcon,options);
+    fval
+    output;
+    grad;
+end
 %% Create input vectors for Simulink
 optimalInput        = timeseries;
 optimalInput.time   = [0:h:T_run-h]';
@@ -135,11 +145,23 @@ if shouldPlot
    ylabel('Angle [radians]');
    
    figure(3); % Plot Travel/Elevation
-   plot(-optimalTrajectory.data(:,1), [optimalTrajectory.data(:,5), berg(pi+optimalTrajectory.data(:,1))]);
+   plot(-optimalTrajectory.data(:,1), [optimalTrajectory.data(:,5) , optimalInput.data(:,2) ]);
+   hold on
+   plot([0:0.01:pi], berg(+pi/3+[0:0.01:pi]));
+   hold off
     %plot(optimalTrajectory.data(:,1), [optimalTrajectory.data(:,5), berg(optimalTrajectory.data(:,1))]);
    grid on;
    title('Travel - Elevation trajectory');
    xlabel('Travel [radians]');
    ylabel('Elevation [radians]');
+   legend('Trajectory in space','Elevation input', 'Gråkallen');
    
 end
+
+Q_lqr = diag([1 0 0 0 100 0]);
+R_lqr = diag([q_1 q_2]);
+
+% Calculating the optimal feedback gain K
+[K, P, eigenvalues] = dlqr(A_d, B_d, Q_lqr, R_lqr);
+ 
+K %= [0 0 0 0 0 0; 0 0 0 0 0 0]
